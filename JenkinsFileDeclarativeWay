@@ -1,0 +1,84 @@
+pipeline
+{
+
+agent any
+
+tools {
+  maven "maven-3.8.1"
+      }
+      
+triggers {
+pollSCM ('* * * * *')
+}
+
+options {
+// Add the timestamps to the console logs
+timestamps()
+
+//Discard old builds - generated through snippet generat
+buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '3', daysToKeepStr: '', numToKeepStr: '3'))
+}
+stages {
+
+stage(‘CheckOutCode’)
+  {
+    steps{
+    git branch: 'development', credentialsId: '298480c4-0c1f-48b2-99c3-e08b361b7188', url: 'https://github.com/naeem4github/origin.git'
+         }
+  }
+  
+stage(‘Build’)
+   {
+   steps{
+    sh "mvn clean package"
+             }
+    }
+    
+    stage('ExecuteSonarQubeReport')
+    {
+	steps{
+	sh "mvn sonar:sonar"
+	}
+	}
+	
+stage('UploadArtifactsinNexus')
+	    {
+		steps{
+		sh "mvn deploy"
+		} 
+		}
+		
+stage('DeployAppToTomcatServer')
+	    {
+		steps{
+        sshagent(['2de836d7-742d-4f93-b9d6-43c967d1d113']) {
+//        sh “rm -rf /opt/apache-tomcat-9.0.46/webapps/maven-web-application.war"
+        sh "scp -o  StrictHostKeyChecking=no target/maven-web-application.war ec2-user@3.129.208.5:/opt/apache-tomcat-9.0.46/webapps/"
+		} 
+		}
+		
+post{
+ always {
+ emailext body: '''Build over - declarative way 
+
+ Regards,
+ Naeem''', subject: 'Build is Over', to: 'naeem.ahmed@me.com'
+ }
+ success {
+ emailext body: '''Build is successful  - declarative way 
+
+ Regards,
+ Naeem''', subject: 'Build is Over', to: 'naeem.ahmed@me.com'
+ }
+ failure{
+ emailext body: '''Build failed - declarative way 
+
+ Regards,
+ Naeem''', subject: 'Build is Over', to: 'naeem.ahmed@me.com'
+ }
+
+}
+
+}
+}
+}
